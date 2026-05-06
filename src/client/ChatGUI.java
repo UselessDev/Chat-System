@@ -6,7 +6,11 @@ import common.User;
 import javax.swing.*;
 import javax.swing.border.*;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Main chat application window.
@@ -27,14 +31,16 @@ import java.util.List;
  * +-------------------------------------+
  */
 public class ChatGUI extends JFrame {
+    private static final String GROUP_TAB_TITLE = "Group Chat";
+
     private ChatClient client;
     
     // GUI Components
-    private JTextArea chatArea;           // Message history display
+    private JTabbedPane chatTabs;
+    private JTextArea groupChatArea;
+    private Map<String, JTextArea> directMessageAreas;
     private JTextField inputField;          // Where user types
     private JButton sendButton;             // Send button
-    private JComboBox<String> userDropdown; // Select recipient
-    private JComboBox<String> targetSelector; // "All" or specific user
     
     // Status Panel Components
     private JLabel statusLabel;
@@ -55,6 +61,7 @@ public class ChatGUI extends JFrame {
         
         // Initialize client
         client = new ChatClient(serverAddress, port);
+        directMessageAreas = new HashMap<>();
         setupCallbacks();
         
         buildGUI();
@@ -66,19 +73,17 @@ public class ChatGUI extends JFrame {
     private void buildGUI() {
         setLayout(new BorderLayout(5, 5));
         
-        // === CENTER: Chat History ===
-        chatArea = new JTextArea();
-        chatArea.setEditable(false);
-        chatArea.setLineWrap(true);
-        chatArea.setWrapStyleWord(true);
-        chatArea.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        
-        JScrollPane chatScroll = new JScrollPane(chatArea);
-        chatScroll.setBorder(BorderFactory.createTitledBorder(
+        // === CENTER: Group + Direct Message Tabs ===
+        chatTabs = new JTabbedPane();
+        groupChatArea = createChatArea();
+
+        JScrollPane groupChatScroll = new JScrollPane(groupChatArea);
+        groupChatScroll.setBorder(BorderFactory.createTitledBorder(
             new EtchedBorder(), "Chat History", TitledBorder.LEFT, TitledBorder.TOP,
             new Font("Segoe UI", Font.BOLD, 12)
         ));
-        add(chatScroll, BorderLayout.CENTER);
+        chatTabs.addTab(GROUP_TAB_TITLE, groupChatScroll);
+        add(chatTabs, BorderLayout.CENTER);
         
         // === EAST: Status & User Panel ===
         JPanel sidePanel = new JPanel(new BorderLayout(5, 5));
@@ -108,6 +113,17 @@ public class ChatGUI extends JFrame {
         userListModel = new DefaultListModel<>();
         userListDisplay = new JList<>(userListModel);
         userListDisplay.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        userListDisplay.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 1) {
+                    String selectedUser = userListDisplay.getSelectedValue();
+                    if (selectedUser != null && !selectedUser.trim().isEmpty()) {
+                        openDirectMessageTab(selectedUser);
+                    }
+                }
+            }
+        });
         
         JScrollPane userScroll = new JScrollPane(userListDisplay);
         userScroll.setBorder(BorderFactory.createTitledBorder(
@@ -130,13 +146,7 @@ public class ChatGUI extends JFrame {
         sendButton.setEnabled(false); // Disabled until connected
         sendButton.addActionListener(e -> sendMessage());
         
-        // Target selector: "All Users" or specific person
-        targetSelector = new JComboBox<>();
-        targetSelector.addItem("Send to All");
-        targetSelector.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        
-        JPanel buttonPanel = new JPanel(new GridLayout(1, 2, 5, 0));
-        buttonPanel.add(targetSelector);
+        JPanel buttonPanel = new JPanel(new GridLayout(1, 1, 5, 0));
         buttonPanel.add(sendButton);
         
         inputPanel.add(inputField, BorderLayout.CENTER);
@@ -206,17 +216,13 @@ public class ChatGUI extends JFrame {
     private void sendMessage() {
         String text = inputField.getText().trim();
         if (text.isEmpty()) return;
-        
-        String target = (String) targetSelector.getSelectedItem();
-        
-        if ("Send to All".equals(target)) {
-            // Broadcast to everyone
+
+        String selectedTab = chatTabs.getTitleAt(chatTabs.getSelectedIndex());
+        if (GROUP_TAB_TITLE.equals(selectedTab)) {
             client.sendMessage(text, Message.Type.BROADCAST, null);
-            // Note: Server will echo back, so we don't add to GUI here
-            // (Real apps often show "pending" then confirm)
         } else {
-            // Private message to selected user
-            client.sendMessage(text, Message.Type.PRIVATE, target);
+            String recipient = extractUsernameFromTabTitle(selectedTab);
+            client.sendMessage(text, Message.Type.PRIVATE, recipient);
         }
         
         inputField.setText(""); // Clear input
@@ -246,14 +252,10 @@ public class ChatGUI extends JFrame {
                     formatted = timeStr + msg.getSender() + ": " + msg.getContent();
                 }
         }
-        
-        chatArea.append(formatted + "\n");
-        chatArea.setCaretPosition(chatArea.getDocument().getLength()); // Auto-scroll
     }
     
     private void appendSystemMessage(String text) {
-        chatArea.append("[INFO] " + text + "\n");
-        chatArea.setCaretPosition(chatArea.getDocument().getLength());
+        appendToArea(groupChatArea, "[INFO] " + text);
     }
     
     // Update the user list dropdown and display
@@ -266,26 +268,7 @@ public class ChatGUI extends JFrame {
             }
         }
         
-        // Update dropdown (preserve selection if possible)
-        String currentSelection = (String) targetSelector.getSelectedItem();
-        targetSelector.removeAllItems();
-        targetSelector.addItem("Send to All");
-        
-        for (User user : users) {
-            if (!user.getUsername().equals(client.getUsername())) {
-                targetSelector.addItem(user.getUsername());
-            }
-        }
-        
-        // Restore selection if still valid
-        if (currentSelection != null) {
-            for (int i = 0; i < targetSelector.getItemCount(); i++) {
-                if (targetSelector.getItemAt(i).equals(currentSelection)) {
-                    targetSelector.setSelectedIndex(i);
-                    break;
-                }
-            }
-        }
+        removeTabsForOfflineUsers(users);
     }
     
     // Update status indicators
@@ -301,6 +284,87 @@ public class ChatGUI extends JFrame {
             sendButton.setEnabled(false);
             JOptionPane.showMessageDialog(this, "Connection lost!");
         }
+    }
+
+    private JTextArea createChatArea() {
+        JTextArea area = new JTextArea();
+        area.setEditable(false);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        return area;
+    }
+
+    private void openDirectMessageTab(String username) {
+        if (!directMessageAreas.containsKey(username)) {
+            JTextArea dmArea = createChatArea();
+            directMessageAreas.put(username, dmArea);
+            JScrollPane dmScroll = new JScrollPane(dmArea);
+            chatTabs.addTab(getDirectMessageTabTitle(username), dmScroll);
+        }
+        chatTabs.setSelectedIndex(findTabIndexByTitle(getDirectMessageTabTitle(username)));
+    }
+
+    private void handlePrivateMessage(Message msg) {
+        String me = client.getUsername();
+        String otherUser = msg.getSender().equals(me) ? msg.getRecipient() : msg.getSender();
+        if (otherUser == null || otherUser.trim().isEmpty()) {
+            appendToArea(groupChatArea, "[DM] " + msg.getSender() + ": " + msg.getContent());
+            return;
+        }
+
+        openDirectMessageTab(otherUser);
+        JTextArea dmArea = directMessageAreas.get(otherUser);
+        if (msg.getSender().equals(me)) {
+            appendToArea(dmArea, "You: " + msg.getContent());
+        } else {
+            appendToArea(dmArea, msg.getSender() + ": " + msg.getContent());
+        }
+    }
+
+    private void appendToArea(JTextArea area, String line) {
+        area.append(line + "\n");
+        area.setCaretPosition(area.getDocument().getLength());
+    }
+
+    private void removeTabsForOfflineUsers(List<User> users) {
+        Map<String, Boolean> onlineUsers = new HashMap<>();
+        for (User user : users) {
+            onlineUsers.put(user.getUsername(), true);
+        }
+
+        directMessageAreas.entrySet().removeIf(entry -> {
+            String username = entry.getKey();
+            if (!onlineUsers.containsKey(username)) {
+                int tabIndex = findTabIndexByTitle(getDirectMessageTabTitle(username));
+                if (tabIndex >= 0) {
+                    chatTabs.remove(tabIndex);
+                }
+                return true;
+            }
+            return false;
+        });
+    }
+
+    private int findTabIndexByTitle(String title) {
+        for (int i = 0; i < chatTabs.getTabCount(); i++) {
+            if (title.equals(chatTabs.getTitleAt(i))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private String getDirectMessageTabTitle(String username) {
+        return "DM: " + username;
+    }
+
+    private String extractUsernameFromTabTitle(String tabTitle) {
+        String prefix = "DM: ";
+        if (tabTitle != null && tabTitle.startsWith(prefix)) {
+            return tabTitle.substring(prefix.length()).trim();
+        }
+        return null;
     }
 
     public static void main(String[] args) {
