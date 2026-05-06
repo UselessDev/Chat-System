@@ -232,24 +232,19 @@ public class ChatGUI extends JFrame {
     // Add formatted message to chat area
     private void appendMessage(Message msg) {
         String timeStr = "[" + msg.getFormattedTime() + "] ";
-        String formatted;
-        Color color = Color.BLACK;
-        
+
         switch (msg.getType()) {
             case SYSTEM:
-                formatted = timeStr + "[SYSTEM] " + msg.getContent();
-                color = COLOR_SYSTEM;
+                appendToArea(groupChatArea, timeStr + "[SYSTEM] " + msg.getContent());
                 break;
             case PRIVATE:
-                formatted = timeStr + "[DM] " + msg.getSender() + " -> " + msg.getRecipient() + ": " + msg.getContent();
-                color = new Color(128, 0, 128); // Purple for private
+                handlePrivateMessage(msg);
                 break;
             default: // BROADCAST
                 if (msg.getSender().equals(client.getUsername())) {
-                    formatted = timeStr + "You: " + msg.getContent();
-                    color = new Color(0, 100, 200); // Blue for own messages
+                    appendToArea(groupChatArea, timeStr + "You: " + msg.getContent());
                 } else {
-                    formatted = timeStr + msg.getSender() + ": " + msg.getContent();
+                    appendToArea(groupChatArea, timeStr + msg.getSender() + ": " + msg.getContent());
                 }
         }
     }
