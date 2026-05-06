@@ -1,10 +1,12 @@
 package common;
 
 import java.io.Serializable;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 /**
  * Message object sent between client and server.
- * Contains: sender, recipient, content, and message type.
+ * Contains: sender, recipient, content, message type, and timestamp.
  * 
  * Types:
  * - BROADCAST: sent to all users
@@ -20,6 +22,7 @@ public class Message implements Serializable {
     private String recipient;   // Target user (null for broadcast)
     private String content;     // Message text
     private Type type;          // Message category
+    private long timestamp;     // When message was created (milliseconds)
     
     // Constructor for regular chat messages
     public Message(String sender, String recipient, String content, Type type) {
@@ -27,6 +30,7 @@ public class Message implements Serializable {
         this.recipient = recipient;
         this.content = content;
         this.type = type;
+        this.timestamp = System.currentTimeMillis();
     }
     
     // Convenience constructor for system messages
@@ -39,12 +43,20 @@ public class Message implements Serializable {
     public String getRecipient() { return recipient; }
     public String getContent() { return content; }
     public Type getType() { return type; }
+    public long getTimestamp() { return timestamp; }
     
-    // Format: "Alice: Hello" or "[Private] Alice -> Bob: Hello"
+    // Format timestamp as HH:mm:ss
+    public String getFormattedTime() {
+        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+        return sdf.format(new Date(timestamp));
+    }
+    
+    // Format: "[HH:mm:ss] Alice: Hello" or "[HH:mm:ss] [Private] Alice -> Bob: Hello"
     @Override
     public String toString() {
-        if (type == Type.SYSTEM) return "[SYSTEM] " + content;
-        if (type == Type.PRIVATE) return "[Private] " + sender + " -> " + recipient + ": " + content;
-        return sender + ": " + content;
+        String timeStr = "[" + getFormattedTime() + "] ";
+        if (type == Type.SYSTEM) return timeStr + "[SYSTEM] " + content;
+        if (type == Type.PRIVATE) return timeStr + "[Private] " + sender + " -> " + recipient + ": " + content;
+        return timeStr + sender + ": " + content;
     }
 }
