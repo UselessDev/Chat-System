@@ -3,11 +3,14 @@ package server;
 import common.Message;
 import common.User;
 
+import common.FileTransfer;
+
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Central chat server.
@@ -23,6 +26,9 @@ public class ChatServer {
     private final Map<String, ClientHandler> clients = new ConcurrentHashMap<>();
     private final Set<User> userList = ConcurrentHashMap.newKeySet();
     private final ExecutorService threadPool = Executors.newCachedThreadPool();
+    /** Maps username to the worker thread name handling that client */
+    private final Map<String, String> userThreadNames = new ConcurrentHashMap<>();
+    private final List<Runnable> serverStateListeners = new CopyOnWriteArrayList<>();
     
     public static void main(String[] args) {
         new ChatServer().start();
@@ -31,6 +37,10 @@ public class ChatServer {
     public void start() {
         System.out.println("=== Chat Server Starting ===");
         System.out.println("Port: " + PORT);
+
+        if (!java.awt.GraphicsEnvironment.isHeadless()) {
+            javax.swing.SwingUtilities.invokeLater(() -> new AdminMonitor(this));
+        }
         
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             System.out.println("Server ready. Waiting for clients...\n");
@@ -49,9 +59,11 @@ public class ChatServer {
     }
     
     // Called by ClientHandler after successful username registration
-    public synchronized void addClient(String username, ClientHandler handler) {
+    public synchronized void addClient(String username, ClientHandler handler, String workerThreadName) {
         clients.put(username, handler);
         userList.add(new User(username));
+        userThreadNames.put(username, workerThreadName);
+        notifyServerStateListeners();
         
         // Notify everyone that user joined
         broadcast(Message.system(username + " joined the chat"));
@@ -62,6 +74,8 @@ public class ChatServer {
     public synchronized void removeClient(String username) {
         clients.remove(username);
         userList.removeIf(u -> u.getUsername().equals(username));
+        userThreadNames.remove(username);
+        notifyServerStateListeners();
         
         broadcast(Message.system(username + " left the chat"));
         broadcastUserList();
@@ -103,5 +117,50 @@ public class ChatServer {
     // Check if username is taken
     public boolean isUsernameTaken(String username) {
         return clients.containsKey(username);
+    }
+
+    /** Deliver a file transfer packet only to the named recipient */
+    public void sendFilePrivate(String toUsername, FileTransfer ft) {
+        ClientHandler target = clients.get(toUsername);
+        if (target != null) {
+            target.sendObject(ft);
+        } else {
+            ClientHandler sender = clients.get(ft.getSender());
+            if (sender != null) {
+                sender.sendMessage(Message.system("Cannot deliver file: user '" + toUsername + "' is offline"));
+            }
+        }
+    }
+
+    public List<String> getConnectedUsernames() {
+        return new ArrayList<>(clients.keySet());
+    }
+
+    public Map<String, String> getUserThreadDisplayNames() {
+        return new HashMap<>(userThreadNames);
+    }
+
+    public int getActivePoolThreads() {
+        if (threadPool instanceof ThreadPoolExecutor) {
+            return ((ThreadPoolExecutor) threadPool).getActiveCount();
+        }
+        return -1;
+    }
+
+    public void addServerStateListener(Runnable listener) {
+        serverStateListeners.add(listener);
+    }
+
+    public void removeServerStateListener(Runnable listener) {
+        serverStateListeners.remove(listener);
+    }
+
+    private void notifyServerStateListeners() {
+        for (Runnable r : serverStateListeners) {
+            try {
+                r.run();
+            } catch (Exception ignored) {
+            }
+        }
     }
 }

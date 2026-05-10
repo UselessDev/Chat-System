@@ -1,5 +1,6 @@
 package server;
 
+import common.FileTransfer;
 import common.Message;
 import common.User;
 
@@ -47,6 +48,8 @@ public class ClientHandler implements Runnable {
                 if (received instanceof Message) {
                     Message msg = (Message) received;
                     handleMessage(msg);
+                } else if (received instanceof FileTransfer) {
+                    handleFileTransfer((FileTransfer) received);
                 }
             }
         } catch (IOException | ClassNotFoundException e) {
@@ -88,7 +91,7 @@ public class ClientHandler implements Runnable {
         this.username = proposed;
         out.writeObject(Message.system("SUCCESS")); // Confirm to client
         out.flush();
-        server.addClient(username, this);
+        server.addClient(username, this, Thread.currentThread().getName());
         return true;
     }
     
@@ -107,6 +110,18 @@ public class ClientHandler implements Runnable {
                 System.out.println("Unknown message type");
         }
     }
+
+    private void handleFileTransfer(FileTransfer ft) {
+        if (ft.getRecipient() == null || ft.getRecipient().trim().isEmpty()) {
+            sendMessage(Message.system("File transfer requires a recipient (use a DM tab)."));
+            return;
+        }
+        if (!username.equals(ft.getSender())) {
+            sendMessage(Message.system("Invalid file transfer sender."));
+            return;
+        }
+        server.sendFilePrivate(ft.getRecipient().trim(), ft);
+    }
     
     // Send message object to this client
     public void sendMessage(Message msg) {
@@ -115,6 +130,15 @@ public class ClientHandler implements Runnable {
             out.flush();
         } catch (IOException e) {
             System.out.println("Failed to send message to " + username);
+        }
+    }
+
+    public void sendObject(Object obj) {
+        try {
+            out.writeObject(obj);
+            out.flush();
+        } catch (IOException e) {
+            System.out.println("Failed to send object to " + username);
         }
     }
     

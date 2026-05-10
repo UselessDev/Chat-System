@@ -1,5 +1,6 @@
 package client;
 
+import common.FileTransfer;
 import common.Message;
 import common.User;
 
@@ -29,6 +30,7 @@ public class ChatClient {
     private Consumer<Message> messageListener;
     private Consumer<List<User>> userListListener;
     private Consumer<Boolean> connectionListener; // true=connected, false=disconnected
+    private Consumer<FileTransfer> fileTransferListener;
     
     private Thread listenerThread;
     private volatile boolean connected = false;
@@ -49,6 +51,10 @@ public class ChatClient {
     
     public void setConnectionListener(Consumer<Boolean> listener) {
         this.connectionListener = listener;
+    }
+
+    public void setFileTransferListener(Consumer<FileTransfer> listener) {
+        this.fileTransferListener = listener;
     }
     
     /**
@@ -94,10 +100,12 @@ public class ChatClient {
                     Object received = in.readObject();
                     
                     if (received instanceof Message) {
-                        // Chat or system message
                         if (messageListener != null) {
-                            // Run on GUI thread via SwingUtilities later
                             messageListener.accept((Message) received);
+                        }
+                    } else if (received instanceof FileTransfer) {
+                        if (fileTransferListener != null) {
+                            fileTransferListener.accept((FileTransfer) received);
                         }
                     } else if (received instanceof List<?>) {
                         // User list update
@@ -129,6 +137,16 @@ public class ChatClient {
             out.flush();
         } catch (IOException e) {
             System.err.println("Send failed: " + e.getMessage());
+        }
+    }
+
+    public void sendFileTransfer(FileTransfer transfer) {
+        if (!connected) return;
+        try {
+            out.writeObject(transfer);
+            out.flush();
+        } catch (IOException e) {
+            System.err.println("File send failed: " + e.getMessage());
         }
     }
     

@@ -19,8 +19,22 @@ A simple Java socket-based chat system with a Swing GUI client and a multithread
      - Connected/Disconnected status
      - Server IP and port
 5. **Broadcast and Private Messaging**
-   - Select `Send to All` for group chat.
-   - Select a specific user for private messages.
+   - Use the **Group Chat** tab for everyone; click an online user to open a **DM** tab for private messages.
+
+6. **Direct message tabs**
+   - Click a username in the list to open `DM: <name>`.
+
+7. **GUI file transfer**
+   - In a DM tab, use **Send File** and pick a file. The receiver sees progress, then a save dialog when the transfer completes.
+
+8. **Admin server monitor**
+   - Starting the server opens an **Admin Monitor** window: connected users and which worker thread handles each client.
+
+9. **Emoji / styled chat**
+   - Text emoticons like `:)`, `:(`, `<3` are replaced with emoji; usernames and roles use distinct colors in `JTextPane` panes.
+
+10. **Chat history persistence**
+   - JSONL logs under `%USERPROFILE%\.introg_chat\` reload after login.
 
 ## Project Structure
 
@@ -29,12 +43,16 @@ src/
   common/
     Message.java
     User.java
+    FileTransfer.java
   server/
     ChatServer.java
     ClientHandler.java
+    AdminMonitor.java
   client/
     ChatClient.java
     ChatGUI.java
+    ChatHistoryStore.java
+    StyleUtil.java
 ```
 
 ## Requirements
@@ -42,37 +60,37 @@ src/
 - Java JDK 17+ (or any version that supports your local `javac`/`java` setup)
 - Windows PowerShell, CMD, or any terminal
 
+## Build
+
+```powershell
+javac -d out src/common/*.java src/server/*.java src/client/*.java
+```
 
 ## Run
 
-### 1) Start Server
+### 1) Start server
 
-```(Current Dir) CMD/Terminal
-java ChatServer.java
+```powershell
+java -cp out server.ChatServer
 ```
 
-### 2) Start Client (open another terminal)
+### 2) Start client (another terminal)
 
-```(Current Dir) CMD/Terminal
-java ChatGUI.java
+```powershell
+java -cp out client.ChatGUI
 ```
 
-Optional custom host and port:
+Optional host and port:
 
-(OPTIONAL)
 ```powershell
 java -cp out client.ChatGUI 127.0.0.1 5000
 ```
 
 ## Usage
 
-1. Start the server.
-2. Open one or more client instances.
-3. Enter a username when prompted.
-4. Type a message and click **Send**.
-5. Choose between:
-   - **Send to All** for broadcast
-   - A specific username for private message
+1. Start the server (admin monitor opens on the server desktop).
+2. Open one or more clients; history reloads after login.
+3. **Group Chat** for broadcasts; click a user for a DM tab (text or **Send File**).
 
 ## Notes
 
