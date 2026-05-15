@@ -6,52 +6,60 @@ import java.util.Date;
 
 /**
  * Message object sent between client and server.
- * Contains: sender, recipient, content, message type, and timestamp.
- * 
- * Types:
- * - BROADCAST: sent to all users
- * - PRIVATE: sent to specific user only
- * - SYSTEM: server notifications (join/leave/status)
+ * Types: BROADCAST, PRIVATE, SYSTEM.
+ * {@code roomName} scopes BROADCAST (and optional SYSTEM) to a chat room; null means {@code general}.
  */
 public class Message implements Serializable {
-    private static final long serialVersionUID = 1L;
-    
+    private static final long serialVersionUID = 2L;
+
     public enum Type { BROADCAST, PRIVATE, SYSTEM }
-    
-    private String sender;      // Who sent the message
-    private String recipient;   // Target user (null for broadcast)
-    private String content;     // Message text
-    private Type type;          // Message category
-    private long timestamp;     // When message was created (milliseconds)
-    
-    // Constructor for regular chat messages
+
+    private String sender;
+    private String recipient;
+    private String content;
+    private Type type;
+    private long timestamp;
+    /** Room for broadcast/system routing; null treated as "general" on server. */
+    private String roomName;
+
     public Message(String sender, String recipient, String content, Type type) {
+        this(sender, recipient, content, type, null);
+    }
+
+    public Message(String sender, String recipient, String content, Type type, String roomName) {
         this.sender = sender;
         this.recipient = recipient;
         this.content = content;
         this.type = type;
         this.timestamp = System.currentTimeMillis();
+        this.roomName = roomName;
     }
-    
-    // Convenience constructor for system messages
+
     public static Message system(String text) {
-        return new Message("SERVER", null, text, Type.SYSTEM);
+        return new Message("SERVER", null, text, Type.SYSTEM, null);
     }
-    
-    // Getters
+
+    /** System line scoped to one room (only members receive it). */
+    public static Message systemInRoom(String text, String room) {
+        return new Message("SERVER", null, text, Type.SYSTEM, room);
+    }
+
     public String getSender() { return sender; }
     public String getRecipient() { return recipient; }
     public String getContent() { return content; }
     public Type getType() { return type; }
     public long getTimestamp() { return timestamp; }
-    
-    // Format timestamp as HH:mm:ss
+    public String getRoomName() { return roomName; }
+
+    public void setRoomName(String roomName) {
+        this.roomName = roomName;
+    }
+
     public String getFormattedTime() {
         SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
         return sdf.format(new Date(timestamp));
     }
-    
-    // Format: "[HH:mm:ss] Alice: Hello" or "[HH:mm:ss] [Private] Alice -> Bob: Hello"
+
     @Override
     public String toString() {
         String timeStr = "[" + getFormattedTime() + "] ";

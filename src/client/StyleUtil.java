@@ -21,11 +21,11 @@ public final class StyleUtil {
 
     public static Color colorForUsername(String username) {
         if (username == null || username.isEmpty()) {
-            return new Color(60, 60, 60);
+            return new Color(0x72, 0x76, 0x7D);
         }
         int h = Math.abs(username.hashCode());
         float hue = (h % 360) / 360f;
-        return Color.getHSBColor(hue, 0.55f, 0.85f);
+        return Color.getHSBColor(hue, 0.62f, 0.95f);
     }
 
     public static void setForeground(javax.swing.text.SimpleAttributeSet attrs, Color c) {

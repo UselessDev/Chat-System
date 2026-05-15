@@ -36,6 +36,19 @@ A simple Java socket-based chat system with a Swing GUI client and a multithread
 10. **Chat history persistence**
    - JSONL logs under `%USERPROFILE%\.introg_chat\` reload after login.
 
+11. **Login authentication**
+   - First screen: username + password. Check **Create new account** to register; otherwise the server checks credentials.
+   - Passwords are stored as **SHA-256** hashes in `%USERPROFILE%\.introg_chat\users_credentials.txt` (demo only — use bcrypt in production).
+   - Wrong password or duplicate online session shows an error; success opens the chat UI.
+
+12. **Chat rooms**
+   - **General** tab: messages go to **everyone** online (global lobby).
+   - Custom rooms open as **extra tabs** (`#roomname`); only members in that room see those messages.
+   - Left panel lists rooms; **Create room**, **Join selected**, **Leave to general** (switches active room; you still receive General chat).
+
+13. **Typing indicators**
+   - While the **Room Chat** tab is active and you type, others in the same room see `Alice is typing…` under the room list.
+
 ## Project Structure
 
 ```text
@@ -44,10 +57,16 @@ src/
     Message.java
     User.java
     FileTransfer.java
+    LoginRequest.java
+    RoomCommand.java
+    RoomListUpdate.java
+    RoomStateEvent.java
+    TypingEvent.java
   server/
     ChatServer.java
     ClientHandler.java
     AdminMonitor.java
+    CredentialStore.java
   client/
     ChatClient.java
     ChatGUI.java
@@ -89,8 +108,9 @@ java -cp out client.ChatGUI 127.0.0.1 5000
 ## Usage
 
 1. Start the server (admin monitor opens on the server desktop).
-2. Open one or more clients; history reloads after login.
-3. **Group Chat** for broadcasts; click a user for a DM tab (text or **Send File**).
+2. Open one or more clients. **Register** the first account (checkbox), then log in on other machines with the same username/password or create more accounts.
+3. Use **Room Chat** for room-scoped messages; manage rooms from the left panel.
+4. Click an online user for a **DM** tab (text or **Send File**).
 
 ## Notes
 
